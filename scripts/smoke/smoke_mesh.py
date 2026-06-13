@@ -1,4 +1,5 @@
-import os, sys
+import os
+import sys
 from solace.messaging.messaging_service import MessagingService
 from solace.messaging.resources.topic import Topic
 
