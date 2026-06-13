@@ -30,8 +30,8 @@ pyarrow>=15
 # Embeddings and classical AI
 sentence-transformers>=3.0
 einops>=0.8
-scikit-learn>=1.4
-xgboost>=2.0
+scikit-learn>=1.3.0
+xgboost>=2.0.0
 
 # Geospatial, tracks, PDF and utilities
 gpxpy>=1.6
