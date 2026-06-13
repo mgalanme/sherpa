@@ -11,7 +11,13 @@ from typing import Any
 
 from .. import mesh
 from ..clients import culture, geo, nature, route, weather
-from ..models import ActivityInputs, Dossier
+from ..models import (
+    ActivityInputs,
+    Dossier,
+    EquipmentChecklist,
+    Recommendation,
+    RiskFlag,
+)
 from ..recommend import recommend
 
 
@@ -62,29 +68,23 @@ def run_recommend(state: dict[str, Any]) -> dict[str, Any]:
     """Run the classical recommendation engine. If it fails, return a safe fallback."""
     try:
         inp: ActivityInputs = state["inputs"]
-        # The route and weather must be present; if not, create minimal defaults
         route_info = state.get("route")
         weather_panel = state.get("weather")
         if route_info is None or weather_panel is None:
             _emit(state, "recommend_warning", {"reason": "Missing route or weather"})
-            # Create a fallback recommendation
-            from ..models import Recommendation, Checklist, RiskFlag
-
             rec = Recommendation(
-                checklist=Checklist(personal=[], activity_specific=[], nutrition_hydration=[]),
+                checklist=EquipmentChecklist(personal=[], activity_specific=[], nutrition_hydration=[]),
                 risk_flags=[],
-                rationale="Recommendation skipped because route or weather data was missing."
+                rationale=["Recommendation skipped because route or weather data was missing."]
             )
         else:
             rec = recommend(inp, route_info, weather_panel)
     except Exception as e:
         _emit(state, "recommend_error", {"error": str(e), "trace": traceback.format_exc()})
-        # Fallback: empty recommendation with error note
-        from ..models import Recommendation, Checklist, RiskFlag
         rec = Recommendation(
-            checklist=Checklist(personal=[], activity_specific=[], nutrition_hydration=[]),
+            checklist=EquipmentChecklist(personal=[], activity_specific=[], nutrition_hydration=[]),
             risk_flags=[],
-            rationale=f"Recommendation engine failed: {str(e)}. Please review manually."
+            rationale=[f"Recommendation engine failed: {str(e)}. Please review manually."]
         )
     _emit(state, "recommend", {"flags": len(rec.risk_flags)})
     return {"recommendation": rec}
@@ -102,11 +102,10 @@ def run_compose(state: dict[str, Any]) -> dict[str, Any]:
     recommendation = state.get("recommendation")
     if recommendation is None:
         # This should not happen if run_recommend ran, but guard against graph misconfiguration
-        from ..models import Recommendation, Checklist, RiskFlag
         recommendation = Recommendation(
-            checklist=Checklist(personal=[], activity_specific=[], nutrition_hydration=[]),
+            checklist=EquipmentChecklist(personal=[], activity_specific=[], nutrition_hydration=[]),
             risk_flags=[],
-            rationale="Recommendation was not produced. Check the graph definition or logs."
+            rationale=["Recommendation was not produced. Check the graph definition or logs."]
         )
         _emit(state, "compose_warning", {"reason": "Missing recommendation, using fallback"})
 
