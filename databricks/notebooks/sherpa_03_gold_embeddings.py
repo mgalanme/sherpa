@@ -1,4 +1,13 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "2"
+# dependencies = [
+#   "sentence-transformers",
+#   "einops",
+#   "qdrant-client>=1.12.0",
+# ]
+# ///
 # MAGIC %md
 # MAGIC # SHERPA 03 - Gold and precomputed embeddings
 # MAGIC Builds the gold place-fact table and precomputes embeddings, then upserts them into
@@ -7,7 +16,12 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install sentence-transformers einops qdrant-client==1.12.4
+# MAGIC %pip install sentence-transformers einops qdrant-client>=1.12.0
+
+# COMMAND ----------
+
+# MAGIC %restart_python
+
 # COMMAND ----------
 
 import uuid
