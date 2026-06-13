@@ -1,0 +1,52 @@
+# SHERPA mesh configuration (optional faithful local mesh).
+#
+# The pilot's deployed app runs orchestration in-process with LangGraph and publishes
+# governance/observability events to the broker via src/mesh.py. For a fully faithful,
+# multi-process event mesh during local development, this file defines the broker connection
+# and the agent topics for use with the Solace Agent Mesh runtime (run with the SAM CLI in
+# the .venv-mesh environment).
+#
+# Values are read from environment variables (the project .env), so no secrets are stored here.
+
+broker:
+  type: solace
+  host: ${SOLACE_LOCAL_HOST}        # local PubSub+ in development; ${SOLACE_HOST} for cloud
+  vpn: ${SOLACE_LOCAL_VPN}
+  username: ${SOLACE_LOCAL_USERNAME}
+  password: ${SOLACE_LOCAL_PASSWORD}
+
+mesh:
+  namespace: sherpa
+  orchestrator:
+    name: orchestrator
+    description: Interprets the plan request and delegates to the specialist agents.
+
+  agents:
+    - name: weather_agent
+      description: Retrieves forecasts and seasonal baselines and derives risk indicators.
+      subscribes: sherpa/plan/*/request
+      publishes: sherpa/plan/*/weather
+    - name: geo_access_agent
+      description: Resolves locations and investigates access and closures.
+      subscribes: sherpa/plan/*/request
+      publishes: sherpa/plan/*/access
+    - name: route_agent
+      description: Parses user GPX or generates a route via OpenRouteService.
+      subscribes: sherpa/plan/*/request
+      publishes: sherpa/plan/*/route
+    - name: heritage_agent
+      description: Gathers grounded history, landscape and biodiversity context.
+      subscribes: sherpa/plan/*/request
+      publishes: sherpa/plan/*/culture
+    - name: recommend_agent
+      description: Calls the classical models to produce the checklist and risk flags.
+      subscribes: sherpa/plan/*/route, sherpa/plan/*/weather
+      publishes: sherpa/plan/*/recommend
+    - name: dossier_agent
+      description: Composes the dossier and submits it for human review.
+      subscribes: sherpa/plan/*/recommend, sherpa/plan/*/access, sherpa/plan/*/culture
+      publishes: sherpa/plan/*/draft
+    - name: governance_agent
+      description: Enforces the HITL gate and writes the hash-chained audit trail.
+      subscribes: sherpa/plan/*/hitl_decision
+      publishes: sherpa/plan/*/audit
