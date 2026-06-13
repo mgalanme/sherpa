@@ -1,0 +1,45 @@
+# requirements-cloud.txt - The SINGLE merged requirement set for Streamlit Community Cloud,
+# which supports only one environment. Streamlit Cloud reads a file named requirements.txt at
+# the repository root, so copy or symlink this file to requirements.txt before deploying.
+#
+# Resource note: sentence-transformers pulls in torch, which is heavy for the free tier.
+# Mitigation already designed into the architecture: place-fact embeddings are precomputed in
+# the Databricks gold pipeline; at runtime the app embeds only the short user query, which is
+# light. If the free tier still struggles, switch the runtime query embedding to a hosted call
+# and drop sentence-transformers from this file.
+
+streamlit>=1.36
+
+# Orchestration and LLM access
+langgraph>=0.2
+langchain>=0.3
+langchain-community>=0.3
+langchain-groq>=0.2
+langchain-huggingface>=0.1
+
+# Mesh runtime (in-process against the Solace Cloud broker for the deployed demo)
+solace-agent-mesh>=0.1
+solace-pubsubplus>=1.8
+
+# Stores reachable from the cloud
+qdrant-client==1.12.4
+neo4j>=5.24
+databricks-sql-connector>=3.0
+pyarrow>=15
+
+# Embeddings and classical AI
+sentence-transformers>=3.0
+einops>=0.8
+scikit-learn>=1.4
+xgboost>=2.0
+
+# Geospatial, tracks, PDF and utilities
+gpxpy>=1.6
+folium>=0.16
+streamlit-folium>=0.20
+reportlab>=4.1
+pydantic>=2.7
+python-dotenv>=1.0
+requests>=2.32
+pandas>=2.2
+numpy>=1.26

@@ -1,0 +1,44 @@
+# .venv-langchain - orchestration, data access, classical AI and the Streamlit application.
+# Only the version that must match a server is pinned exactly (Qdrant). Others use lower
+# bounds to stay current while remaining compatible; pin them further once the demo is frozen.
+
+# Orchestration and LLM access
+langgraph>=0.2
+langchain>=0.3
+langchain-community>=0.3
+langchain-groq>=0.2
+langchain-huggingface>=0.1
+
+# Vector store client - MUST match the Qdrant server minor version (v1.12.4)
+#qdrant-client==1.12.4
+qdrant-client>=1.12.0,<1.13.0
+
+# Graph
+neo4j>=5.24
+
+# Embeddings produced in-process: nomic-ai/nomic-embed-text-v1 (768 dims)
+sentence-transformers>=3.0
+einops>=0.8
+
+# Data platform access
+databricks-sql-connector>=3.0
+pyarrow>=15
+
+# Classical / traditional AI
+scikit-learn>=1.4
+xgboost>=2.0
+mlflow>=2.14
+
+# Geospatial and tracks
+gpxpy>=1.6
+folium>=0.16
+streamlit-folium>=0.20
+
+# Application and utilities
+streamlit>=1.36
+reportlab>=4.1
+pydantic>=2.7
+python-dotenv>=1.0
+requests>=2.32
+pandas>=2.2
+numpy>=1.26

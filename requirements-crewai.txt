@@ -1,0 +1,11 @@
+# .venv-crewai - CrewAI collaborative crews, kept isolated from LangChain.
+# Reminder: import CrewAI modules in the main thread before spawning worker threads.
+
+crewai>=0.51
+crewai-tools>=0.8
+
+# Shared utilities used by the crews
+langchain-groq>=0.2
+pydantic>=2.7
+python-dotenv>=1.0
+requests>=2.32

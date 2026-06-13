@@ -1,0 +1,8 @@
+# .venv-mesh - Solace Agent Mesh runtime and the Solace messaging API.
+# Solace Agent Mesh pulls in the Solace AI Connector and the Google Agent Development Kit.
+
+solace-agent-mesh>=0.1
+solace-pubsubplus>=1.8
+
+python-dotenv>=1.0
+requests>=2.32
