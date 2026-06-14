@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from src import audit, mesh  # noqa: E402
 from src.agents import graph  # noqa: E402
 from src.catalog import ACTIVITY_LABELS  # noqa: E402
-from src.clients.route import gpx_endpoints, parse_gpx  # noqa: E402
+from src.clients.route import parse_gpx  # noqa: E402
 from src.clients.transport import TransportOption  # noqa: E402
 from src.config import get_settings, load_streamlit_secrets  # noqa: E402
 from src.dossier import render_pdf  # noqa: E402
