@@ -41,7 +41,7 @@ if "lang" not in st.session_state:
 with st.sidebar:
     st.markdown("### " + t("lang_selector", st.session_state["lang"]))
     chosen = st.selectbox(
-        label="",
+        label="Select language",
         options=list(LANGUAGES.keys()),
         format_func=lambda k: LANGUAGES[k],
         index=list(LANGUAGES.keys()).index(st.session_state["lang"]),

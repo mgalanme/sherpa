@@ -46,7 +46,6 @@ def _open_meteo_forecast(point: GeoPoint, day: date) -> WeatherPanel:
             "wind_speed_10m_max,wind_gusts_10m_max,uv_index_max,snowfall_sum,"
             "precipitation_sum,weathercode,sunrise,sunset"
         ),
-        "hourly": "visibility,apparent_temperature_max",
         "timezone": "auto",
         "start_date": day.isoformat(),
         "end_date": day.isoformat(),

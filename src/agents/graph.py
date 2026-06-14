@@ -3,17 +3,28 @@
 Lessons applied: interrupt_before is used to pause at the review node, and a single
 module-level MemorySaver is shared across invocations so that a paused workflow can be resumed
 after the human decision. Node names never collide with state keys.
+
+LangGraph msgpack registration: all Pydantic models used in the graph state are registered
+via the environment variable so that MemorySaver can deserialise them cleanly without warnings,
+and to be ready for when LANGGRAPH_STRICT_MSGPACK becomes the default.
 """
 
 from __future__ import annotations
 
 import operator
+import os
 from typing import Annotated, Any, TypedDict
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from . import nodes
+
+# Register Pydantic models used in graph state before the checkpointer is created.
+os.environ.setdefault(
+    "LANGGRAPH_ALLOWED_MSGPACK_MODULES",
+    "src.models,src.clients.transport",
+)
 
 _CHECKPOINTER = MemorySaver()
 
