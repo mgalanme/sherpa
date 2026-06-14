@@ -19,93 +19,139 @@ CATALOG = "sherpa"
 SCHEMA  = "pilot"
 
 # COMMAND ----------
-# MAGIC %md ## 1. Catalogue and schema
 
-spark.sql(f"CREATE CATALOG IF NOT EXISTS {CATALOG}")  # noqa: F821
-spark.sql(f"USE CATALOG {CATALOG}")                   # noqa: F821
-spark.sql(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}")    # noqa: F821
-spark.sql(f"USE SCHEMA {SCHEMA}")                     # noqa: F821
+# MAGIC %md ## 1. Catalogue and schema
+# MAGIC
+# MAGIC spark.sql(f"CREATE CATALOG IF NOT EXISTS {CATALOG}")  # noqa: F821
+# MAGIC spark.sql(f"USE CATALOG {CATALOG}")                   # noqa: F821
+# MAGIC spark.sql(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}")    # noqa: F821
+# MAGIC spark.sql(f"USE SCHEMA {SCHEMA}")                     # noqa: F821
+# MAGIC print(f"Catalogue '{CATALOG}' and schema '{SCHEMA}' ready.")
+
+# COMMAND ----------
+
+spark.sql(f"CREATE CATALOG IF NOT EXISTS {CATALOG}") # noqa: F821 spark.sql(f"USE CATALOG {CATALOG}") # noqa: F821 
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}") # noqa: F821 
+spark.sql(f"USE SCHEMA {SCHEMA}") # noqa: F821 
 print(f"Catalogue '{CATALOG}' and schema '{SCHEMA}' ready.")
 
 # COMMAND ----------
+
 # MAGIC %md ## 2. Audit trail table (append-only, hash-chained)
 # MAGIC
 # MAGIC This table is written by `src/audit.py` at runtime.
 # MAGIC The explicit column list is critical: Delta MERGE and INSERT operations
 # MAGIC must never rely on schema inference to avoid contamination across runs.
+# MAGIC
+# MAGIC spark.sql(f"""
+# MAGIC CREATE TABLE IF NOT EXISTS {CATALOG}.{SCHEMA}.audit_event (
+# MAGIC   event_id  STRING  NOT NULL COMMENT 'UUID of this audit event',
+# MAGIC   ts        STRING  NOT NULL COMMENT 'ISO-8601 UTC timestamp',
+# MAGIC   actor     STRING  NOT NULL COMMENT 'user | system | reviewer',
+# MAGIC   action    STRING  NOT NULL COMMENT 'submit_inputs | draft_ready | hitl_decision | pdf_generated | ...',
+# MAGIC   plan_id   STRING  NOT NULL COMMENT 'Identifier of the planning session',
+# MAGIC   payload   STRING           COMMENT 'JSON payload of the event',
+# MAGIC   prev_hash STRING           COMMENT 'SHA-256 hash of the previous event (chain anchor)',
+# MAGIC   hash      STRING           COMMENT 'SHA-256 hash of this event concatenated with prev_hash'
+# MAGIC )
+# MAGIC USING DELTA
+# MAGIC COMMENT 'Append-only, hash-chained audit trail for all SHERPA actions.'
+# MAGIC TBLPROPERTIES (
+# MAGIC   'delta.appendOnly' = 'true',
+# MAGIC   'sherpa.version'   = '1'
+# MAGIC )
+# MAGIC """)  # noqa: F821
+# MAGIC print("audit_event table ready.")
 
-spark.sql(f"""
-CREATE TABLE IF NOT EXISTS {CATALOG}.{SCHEMA}.audit_event (
-  event_id  STRING  NOT NULL COMMENT 'UUID of this audit event',
-  ts        STRING  NOT NULL COMMENT 'ISO-8601 UTC timestamp',
-  actor     STRING  NOT NULL COMMENT 'user | system | reviewer',
-  action    STRING  NOT NULL COMMENT 'submit_inputs | draft_ready | hitl_decision | pdf_generated | ...',
-  plan_id   STRING  NOT NULL COMMENT 'Identifier of the planning session',
-  payload   STRING           COMMENT 'JSON payload of the event',
-  prev_hash STRING           COMMENT 'SHA-256 hash of the previous event (chain anchor)',
-  hash      STRING           COMMENT 'SHA-256 hash of this event concatenated with prev_hash'
-)
-USING DELTA
-COMMENT 'Append-only, hash-chained audit trail for all SHERPA actions.'
-TBLPROPERTIES (
-  'delta.appendOnly' = 'true',
-  'sherpa.version'   = '1'
-)
-""")  # noqa: F821
+# COMMAND ----------
+
+spark.sql(f""" CREATE TABLE IF NOT EXISTS {CATALOG}.{SCHEMA}.audit_event ( event_id STRING NOT NULL COMMENT 'UUID of this audit event', ts STRING NOT NULL COMMENT 'ISO-8601 UTC timestamp', actor STRING NOT NULL COMMENT 'user | system | reviewer', action STRING NOT NULL COMMENT 'submit_inputs | draft_ready | hitl_decision | pdf_generated | ...', plan_id STRING NOT NULL COMMENT 'Identifier of the planning session', payload STRING COMMENT 'JSON payload of the event', prev_hash STRING COMMENT 'SHA-256 hash of the previous event (chain anchor)', hash STRING COMMENT 'SHA-256 hash of this event concatenated with prev_hash' ) USING DELTA COMMENT 'Append-only, hash-chained audit trail for all SHERPA actions.' TBLPROPERTIES ( 'delta.appendOnly' = 'true', 'sherpa.version' = '1' ) """) # noqa: F821 
 print("audit_event table ready.")
 
 # COMMAND ----------
-# MAGIC %md ## 3. Bronze raw ingestion table
 
-spark.sql(f"""  # noqa: F821
-CREATE TABLE IF NOT EXISTS {CATALOG}.{SCHEMA}.bronze_place_raw (
-  place        STRING  COMMENT 'Seed place name',
-  lat          DOUBLE  COMMENT 'Latitude of the seed point',
-  lon          DOUBLE  COMMENT 'Longitude of the seed point',
-  source       STRING  COMMENT 'API source identifier',
-  status       INT     COMMENT 'HTTP status code of the raw call',
-  payload      STRING  COMMENT 'Raw JSON response body',
-  ingested_at  STRING  COMMENT 'ISO-8601 UTC ingestion timestamp'
-)
-USING DELTA
-COMMENT 'Bronze layer: raw responses from open-data APIs (Wikipedia, iNaturalist, GBIF, etc.).'
-""")
+# MAGIC %md ## 3. Bronze raw ingestion table
+# MAGIC
+# MAGIC spark.sql(f"""  # noqa: F821
+# MAGIC CREATE TABLE IF NOT EXISTS {CATALOG}.{SCHEMA}.bronze_place_raw (
+# MAGIC   place        STRING  COMMENT 'Seed place name',
+# MAGIC   lat          DOUBLE  COMMENT 'Latitude of the seed point',
+# MAGIC   lon          DOUBLE  COMMENT 'Longitude of the seed point',
+# MAGIC   source       STRING  COMMENT 'API source identifier',
+# MAGIC   status       INT     COMMENT 'HTTP status code of the raw call',
+# MAGIC   payload      STRING  COMMENT 'Raw JSON response body',
+# MAGIC   ingested_at  STRING  COMMENT 'ISO-8601 UTC ingestion timestamp'
+# MAGIC )
+# MAGIC USING DELTA
+# MAGIC COMMENT 'Bronze layer: raw responses from open-data APIs (Wikipedia, iNaturalist, GBIF, etc.).'
+# MAGIC """)
+# MAGIC print("bronze_place_raw table ready.")
+
+# COMMAND ----------
+
+spark.sql(f""" CREATE TABLE IF NOT EXISTS {CATALOG}.{SCHEMA}.bronze_place_raw ( place STRING COMMENT 'Seed place name', lat DOUBLE COMMENT 'Latitude of the seed point', lon DOUBLE COMMENT 'Longitude of the seed point', source STRING COMMENT 'API source identifier', status INT COMMENT 'HTTP status code of the raw call', payload STRING COMMENT 'Raw JSON response body', ingested_at STRING COMMENT 'ISO-8601 UTC ingestion timestamp' ) USING DELTA COMMENT 'Bronze layer: raw responses from open-data APIs (Wikipedia, iNaturalist, GBIF, etc.).' """) 
 print("bronze_place_raw table ready.")
 
 # COMMAND ----------
-# MAGIC %md ## 4. Silver curated POI table
 
-spark.sql(f"""  # noqa: F821
-CREATE TABLE IF NOT EXISTS {CATALOG}.{SCHEMA}.silver_place_poi (
-  place        STRING  COMMENT 'Place name (from seed)',
-  lat          DOUBLE,
-  lon          DOUBLE,
-  poi          STRING  COMMENT 'Point of interest or species name',
-  source       STRING  COMMENT 'wikipedia | inaturalist | gbif | wikidata',
-  ingested_at  STRING
-)
-USING DELTA
-COMMENT 'Silver layer: standardised, deduplicated place-POI pairs.'
-""")
+# MAGIC %md ## 4. Silver curated POI table
+# MAGIC
+# MAGIC spark.sql(f"""  # noqa: F821
+# MAGIC CREATE TABLE IF NOT EXISTS {CATALOG}.{SCHEMA}.silver_place_poi (
+# MAGIC   place        STRING  COMMENT 'Place name (from seed)',
+# MAGIC   lat          DOUBLE,
+# MAGIC   lon          DOUBLE,
+# MAGIC   poi          STRING  COMMENT 'Point of interest or species name',
+# MAGIC   source       STRING  COMMENT 'wikipedia | inaturalist | gbif | wikidata',
+# MAGIC   ingested_at  STRING
+# MAGIC )
+# MAGIC USING DELTA
+# MAGIC COMMENT 'Silver layer: standardised, deduplicated place-POI pairs.'
+# MAGIC """)
+# MAGIC print("silver_place_poi table ready.")
+
+# COMMAND ----------
+
+spark.sql(f""" CREATE TABLE IF NOT EXISTS {CATALOG}.{SCHEMA}.silver_place_poi ( place STRING COMMENT 'Place name (from seed)', lat DOUBLE, lon DOUBLE, poi STRING COMMENT 'Point of interest or species name', source STRING COMMENT 'wikipedia | inaturalist | gbif | wikidata', ingested_at STRING ) USING DELTA COMMENT 'Silver layer: standardised, deduplicated place-POI pairs.' """)
 print("silver_place_poi table ready.")
 
-# COMMAND ----------
-# MAGIC %md ## 5. Gold place table
 
-spark.sql(f"""  # noqa: F821
-CREATE TABLE IF NOT EXISTS {CATALOG}.{SCHEMA}.gold_place (
-  place  STRING  COMMENT 'Place name',
-  lat    DOUBLE,
-  lon    DOUBLE,
-  pois   ARRAY<STRING> COMMENT 'Aggregated POI list for this place'
-)
-USING DELTA
-COMMENT 'Gold layer: one row per place with aggregated POIs, ready for embedding.'
-""")
+# COMMAND ----------
+
+# MAGIC %md ## 5. Gold place table
+# MAGIC
+# MAGIC spark.sql(f"""  # noqa: F821
+# MAGIC CREATE TABLE IF NOT EXISTS {CATALOG}.{SCHEMA}.gold_place (
+# MAGIC   place  STRING  COMMENT 'Place name',
+# MAGIC   lat    DOUBLE,
+# MAGIC   lon    DOUBLE,
+# MAGIC   pois   ARRAY<STRING> COMMENT 'Aggregated POI list for this place'
+# MAGIC )
+# MAGIC USING DELTA
+# MAGIC COMMENT 'Gold layer: one row per place with aggregated POIs, ready for embedding.'
+# MAGIC """)
+# MAGIC print("gold_place table ready.")
+
+# COMMAND ----------
+
+spark.sql(f""" CREATE TABLE IF NOT EXISTS {CATALOG}.{SCHEMA}.gold_place ( place STRING COMMENT 'Place name', lat DOUBLE, lon DOUBLE, pois ARRAY<STRING> COMMENT 'Aggregated POI list for this place' ) USING DELTA COMMENT 'Gold layer: one row per place with aggregated POIs, ready for embedding.' """)
 print("gold_place table ready.")
 
+
+
 # COMMAND ----------
+
 # MAGIC %md ## 6. Verify
+# MAGIC
+# MAGIC tables = spark.sql(f"SHOW TABLES IN {CATALOG}.{SCHEMA}").collect()  # noqa: F821
+# MAGIC print(f"\nTables in {CATALOG}.{SCHEMA}:")
+# MAGIC for row in tables:
+# MAGIC     print(f"  {row['tableName']}")
+# MAGIC
+# MAGIC print("\nBootstrap complete. You can now run notebooks 01 → 02 → 03 for the initial data load,")
+# MAGIC print("and configure the weekly job (sherpa_04_weekly_refresh) in Databricks Workflows.")
+
+# COMMAND ----------
 
 tables = spark.sql(f"SHOW TABLES IN {CATALOG}.{SCHEMA}").collect()  # noqa: F821
 print(f"\nTables in {CATALOG}.{SCHEMA}:")
