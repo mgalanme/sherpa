@@ -1,13 +1,6 @@
-"""Transport options from the departure origin to the activity start point.
+"""Transport options from departure origin to activity start point.
 
-Uses open data sources only:
-- OpenRouteService for driving distance and time (requires ORS key; falls back to haversine)
-- OSRM public demo API for driving as a no-key fallback
-- Transitous / transit routing note (no public EU-wide GTFS routing API without key)
-- Nominatim to resolve the origin address if still a string
-
-This module never asserts a specific bus line or train number unless it can ground it in data;
-it produces a practical structured summary the human can act on.
+Notes are now looked up from i18n.c() to respect the active language.
 """
 
 from __future__ import annotations
@@ -18,12 +11,13 @@ from dataclasses import dataclass, field
 import requests
 
 from ..config import get_settings
+from ..i18n import c
 from ..models import GeoPoint
 
 
 @dataclass
 class TransportOption:
-    mode: str  # "car" | "public_transport" | "other"
+    mode: str
     summary: str
     distance_km: float = 0.0
     duration_min: float = 0.0
@@ -44,12 +38,10 @@ def _haversine_km(a: GeoPoint, b: GeoPoint) -> float:
 
 
 def _osrm_driving(origin: GeoPoint, dest: GeoPoint) -> tuple[float, float]:
-    """OSRM public demo API: returns (distance_km, duration_min). No key required."""
     try:
         url = (
             f"https://router.project-osrm.org/route/v1/driving/"
-            f"{origin.lon},{origin.lat};{dest.lon},{dest.lat}"
-            f"?overview=false"
+            f"{origin.lon},{origin.lat};{dest.lon},{dest.lat}?overview=false"
         )
         r = requests.get(
             url, headers={"User-Agent": get_settings().http_user_agent}, timeout=20
@@ -90,65 +82,67 @@ def _google_maps_link(origin: GeoPoint, dest: GeoPoint, mode: str = "driving") -
     )
 
 
-def _transit_link(origin: GeoPoint, dest: GeoPoint) -> str:
-    return _google_maps_link(origin, dest, mode="transit")
-
-
-def get_transport_options(origin: GeoPoint, dest: GeoPoint) -> list[TransportOption]:
-    """Return car, public transport and other transport options from origin to dest."""
+def get_transport_options(
+    origin: GeoPoint, dest: GeoPoint, lang: str = "en"
+) -> list[TransportOption]:
     s = get_settings()
     options: list[TransportOption] = []
 
-    # 1. Car
+    # Car
     if s.ors_api_key:
         dist_km, dur_min = _ors_driving(origin, dest, s.ors_api_key)
     else:
         dist_km, dur_min = _osrm_driving(origin, dest)
+
+    car_summary_tpl = {
+        "en": "{d} km, approximately {t} minutes by road.",
+        "de": "{d} km, ca. {t} Minuten auf der Straße.",
+        "fr": "{d} km, environ {t} minutes par la route.",
+        "es": "{d} km, aproximadamente {t} minutos por carretera.",
+        "it": "{d} km, circa {t} minuti su strada.",
+        "pl": "{d} km, około {t} minut drogą.",
+        "ro": "{d} km, aproximativ {t} minute pe șosea.",
+        "nl": "{d} km, ongeveer {t} minuten over de weg.",
+        "pt": "{d} km, aproximadamente {t} minutos por estrada.",
+        "el": "{d} χλμ, περίπου {t} λεπτά οδικώς.",
+    }
+    car_summary = (car_summary_tpl.get(lang) or car_summary_tpl["en"]).format(
+        d=dist_km, t=int(dur_min)
+    )
     options.append(
         TransportOption(
             mode="car",
-            summary=f"{dist_km} km, approximately {int(dur_min)} minutes by road.",
+            summary=car_summary,
             distance_km=dist_km,
             duration_min=dur_min,
             notes=[
-                "Check parking availability at or near the start point before setting off.",
-                "If the route is a loop, parking at the start is your return point.",
+                c("transport_check_parking", lang),
+                c("transport_loop_parking", lang),
             ],
             map_link=_google_maps_link(origin, dest),
         )
     )
 
-    # 2. Public transport
-    # There is no single open, keyless EU-wide transit routing API; we use the Google Maps
-    # transit deep link so the user gets a live, real-time journey plan.
+    # Public transport
     straight_km = _haversine_km(origin, dest)
-    transit_note = "Tap the link below for live transit options (trains, buses, metro) using Google Maps."
-    extra_notes = []
+    transit_notes = [c("transport_bike_carriage", lang)]
     if straight_km <= 60:
-        extra_notes.append(
-            "The distance is within typical commuter rail range. Look for Cercanías (Spain), S-Bahn (Germany/Austria), RER (France) or equivalent regional rail services."
-        )
+        transit_notes.insert(0, c("transport_cercanias", lang))
     else:
-        extra_notes.append(
-            "The distance may require an inter-city train or bus. Book in advance for better fares."
-        )
-    extra_notes.append(
-        "If carrying a bicycle, confirm bike carriage policy with the operator before travelling."
-    )
+        transit_notes.insert(0, c("transport_intercity", lang))
     options.append(
         TransportOption(
             mode="public_transport",
-            summary=transit_note,
+            summary=c("transport_transit_tap", lang),
             distance_km=round(straight_km, 1),
-            notes=extra_notes,
-            map_link=_transit_link(origin, dest),
+            notes=transit_notes,
+            map_link=_google_maps_link(origin, dest, "transit"),
         )
     )
 
-    # 3. Other options
-    other_notes = []
+    # Other
+    other_notes: list[str] = []
     if straight_km <= 20 and s.ors_api_key:
-        # Attempt a cycling route to the start
         try:
             r = requests.post(
                 "https://api.openrouteservice.org/v2/directions/cycling-regular/json",
@@ -164,32 +158,41 @@ def get_transport_options(origin: GeoPoint, dest: GeoPoint) -> list[TransportOpt
             seg = r.json()["routes"][0]["summary"]
             cy_km = round(seg["distance"] / 1000.0, 1)
             cy_min = round(seg["duration"] / 60.0, 0)
-            other_notes.append(
-                f"Cycling to the start: {cy_km} km, approximately {int(cy_min)} minutes. This adds {cy_km} km of road cycling before the main activity."
-            )
+            cycling_tpl = {
+                "en": f"Cycling to the start: {cy_km} km, approximately {int(cy_min)} minutes. This adds {cy_km} km of road cycling before the main activity.",
+                "de": f"Radfahren zum Start: {cy_km} km, ca. {int(cy_min)} Minuten. Dies fügt {cy_km} km Straßenradfahren vor der Hauptaktivität hinzu.",
+                "fr": f"Aller au départ à vélo : {cy_km} km, environ {int(cy_min)} minutes. Cela ajoute {cy_km} km de cyclisme avant l'activité principale.",
+                "es": f"Ir al inicio en bici: {cy_km} km, aprox. {int(cy_min)} minutos. Añade {cy_km} km de ciclismo antes de la actividad.",
+                "it": f"In bici fino alla partenza: {cy_km} km, circa {int(cy_min)} minuti. Aggiunge {cy_km} km di ciclismo prima dell'attività.",
+                "pl": f"Rowerem do startu: {cy_km} km, ok. {int(cy_min)} minut. Dodaje {cy_km} km jazdy rowerem przed główną aktywnością.",
+                "ro": f"Pe bicicletă până la start: {cy_km} km, aproximativ {int(cy_min)} minute. Adaugă {cy_km} km de ciclism înainte de activitate.",
+                "nl": f"Fietsen naar het startpunt: {cy_km} km, ongeveer {int(cy_min)} minuten. Dit voegt {cy_km} km fietsen toe vóór de hoofdactiviteit.",
+                "pt": f"De bicicleta até ao início: {cy_km} km, aprox. {int(cy_min)} minutos. Acrescenta {cy_km} km de ciclismo antes da atividade.",
+                "el": f"Με ποδήλατο έως την εκκίνηση: {cy_km} χλμ, περίπου {int(cy_min)} λεπτά. Προσθέτει {cy_km} χλμ ποδηλασίας πριν την κύρια δραστηριότητα.",
+            }
+            other_notes.append(cycling_tpl.get(lang) or cycling_tpl["en"])
         except Exception:
-            other_notes.append(
-                f"Cycling to the start is feasible (approx. {round(straight_km, 1)} km straight line). Use a cycling route planner for a safe road route."
-            )
-    else:
-        other_notes.append(
-            "Cycling or e-scooter to the start may be an option if you live nearby."
-        )
-
-    other_notes.append(
-        "Car sharing (BlaBlaCar, Amovens) can be worth checking for popular trailhead areas, especially for weekend outings."
-    )
-    other_notes.append(
-        "Taxi or ride-hailing to the start can be a practical fallback if public transport does not serve the trailhead."
-    )
+            pass
+    other_notes.extend([c("transport_carsharing", lang), c("transport_taxi", lang)])
+    other_summary_tpl = {
+        "en": "Alternative access options.",
+        "de": "Alternative Zugangsmöglichkeiten.",
+        "fr": "Options d'accès alternatives.",
+        "es": "Opciones de acceso alternativas.",
+        "it": "Opzioni di accesso alternative.",
+        "pl": "Alternatywne opcje dojazdu.",
+        "ro": "Opțiuni alternative de acces.",
+        "nl": "Alternatieve toegangsopties.",
+        "pt": "Opções de acesso alternativas.",
+        "el": "Εναλλακτικές επιλογές πρόσβασης.",
+    }
     options.append(
         TransportOption(
             mode="other",
-            summary="Alternative access options.",
+            summary=other_summary_tpl.get(lang) or other_summary_tpl["en"],
             distance_km=round(straight_km, 1),
             notes=other_notes,
             map_link=_google_maps_link(origin, dest, "walking"),
         )
     )
-
     return options

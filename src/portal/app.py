@@ -27,7 +27,7 @@ from src.clients.route import parse_gpx  # noqa: E402
 from src.clients.transport import TransportOption  # noqa: E402
 from src.config import get_settings, load_streamlit_secrets  # noqa: E402
 from src.dossier import render_pdf  # noqa: E402
-from src.i18n import LANGUAGES, t  # noqa: E402
+from src.i18n import LANGUAGES, t, activity_label, hitl_label  # noqa: E402
 from src.intake import build_inputs, geocode, parse_freetext  # noqa: E402
 from src.models import ActivityInputs, ActivityType, HitlDecision  # noqa: E402
 
@@ -119,7 +119,9 @@ with tab_plan:
             activity = st.selectbox(
                 T("field_activity"),
                 list(ActivityType),
-                format_func=lambda a: ACTIVITY_LABELS.get(a, a.value),
+                format_func=lambda a: activity_label(
+                    a.value, st.session_state.get("lang", "en")
+                ),
             )
             origin = st.text_input(T("field_origin"))
             # Pre-fill from GPX if available
@@ -198,7 +200,7 @@ with tab_plan:
         st.session_state.plan_id = plan_id
         audit.record("user", "submit_inputs", plan_id, inputs.model_dump(mode="json"))
         with st.spinner(T("spinner_building")):
-            state = graph.run_until_review(plan_id, inputs)
+            state = graph.run_until_review(plan_id, inputs, lang=lang)
             st.session_state.dossier = state.get("dossier")
             st.session_state.transport_options = state.get("transport_options", [])
         audit.record("system", "draft_ready", plan_id, {"status": "draft"})
@@ -212,7 +214,7 @@ with tab_review:
     if dossier is None:
         st.info(T("no_draft"))
     else:
-        st.subheader(ACTIVITY_LABELS.get(dossier.inputs.activity_type, "Outing"))
+        st.subheader(activity_label(dossier.inputs.activity_type.value, lang))
 
         # ── Route metrics ─────────────────────────────────────────────────────
         c1, c2, c3 = st.columns(3)
@@ -298,9 +300,11 @@ with tab_review:
         # ── HITL decision ─────────────────────────────────────────────────────
         st.divider()
         st.markdown(f"### {T('hitl_title')}")
-        decision = st.selectbox(
-            T("hitl_decision_label"), [d.value for d in HitlDecision]
+        decision_map = {hitl_label(d.value, lang): d.value for d in HitlDecision}
+        decision_display = st.selectbox(
+            T("hitl_decision_label"), list(decision_map.keys())
         )
+        decision = decision_map[decision_display]
         note = st.text_input(T("hitl_note_label"))
 
         if st.button(T("btn_apply"), type="primary"):

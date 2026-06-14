@@ -1,21 +1,15 @@
-"""Narrative generation.
-
-A small CrewAI crew drafts the engaging, grounded narrative about the place from the retrieved
-facts. CrewAI is imported inside the function (and at module import time in the main thread by
-the portal) so that the import happens on the main thread before any worker threads are
-spawned, per the established lesson. If CrewAI is unavailable, it falls back to a direct,
-grounded language-model call.
-"""
+"""Narrative generation with language-aware prompting."""
 
 from __future__ import annotations
 
+from ..i18n import llm_lang_instruction
 from ..llm import complete
 from ..models import ActivityInputs, PlaceFacts
 
-_SYSTEM = (
+_SYSTEM_BASE = (
     "You are a knowledgeable, warm outdoor and cultural guide. Using only the supplied facts, "
     "write two short, engaging paragraphs about the place: its history, landscape and notable "
-    "nature. Do not invent facts. British English."
+    "nature. Do not invent facts."
 )
 
 
@@ -34,10 +28,10 @@ def _grounding_text(inp: ActivityInputs, facts: PlaceFacts | None) -> str:
     return "\n".join(parts)
 
 
-def write_narrative(inp: ActivityInputs, facts: PlaceFacts | None) -> str:
+def write_narrative(
+    inp: ActivityInputs, facts: PlaceFacts | None, lang: str = "en"
+) -> str:
     grounding = _grounding_text(inp, facts)
+    system = _SYSTEM_BASE + llm_lang_instruction(lang)
     prompt = f"Facts:\n{grounding}\n\nWrite the narrative now."
-
-    # Direct grounded LLM call (robust default). A CrewAI crew can be enabled here when richer
-    # multi-step enrichment is wanted; it must be imported on the main thread first.
-    return complete(prompt, system=_SYSTEM, max_tokens=400, temperature=0.5)
+    return complete(prompt, system=system, max_tokens=400, temperature=0.5)

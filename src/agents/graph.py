@@ -1,13 +1,4 @@
-"""LangGraph orchestration with a Human-in-the-Loop checkpoint.
-
-Lessons applied: interrupt_before is used to pause at the review node, and a single
-module-level MemorySaver is shared across invocations so that a paused workflow can be resumed
-after the human decision. Node names never collide with state keys.
-
-LangGraph msgpack registration: all Pydantic models used in the graph state are registered
-via the environment variable so that MemorySaver can deserialise them cleanly without warnings,
-and to be ready for when LANGGRAPH_STRICT_MSGPACK becomes the default.
-"""
+"""LangGraph orchestration with HITL. Lang is stored in state and propagated to all nodes."""
 
 from __future__ import annotations
 
@@ -20,7 +11,6 @@ from langgraph.graph import END, START, StateGraph
 
 from . import nodes
 
-# Register Pydantic models used in graph state before the checkpointer is created.
 os.environ.setdefault(
     "LANGGRAPH_ALLOWED_MSGPACK_MODULES",
     "src.models,src.clients.transport",
@@ -31,6 +21,7 @@ _CHECKPOINTER = MemorySaver()
 
 class PlanState(TypedDict, total=False):
     plan_id: str
+    lang: str
     inputs: Any
     route: Any
     weather: Any
@@ -73,10 +64,10 @@ def build_graph():
     return g.compile(checkpointer=_CHECKPOINTER, interrupt_before=["hitl_review"])
 
 
-def run_until_review(plan_id: str, inputs: Any) -> dict:
+def run_until_review(plan_id: str, inputs: Any, lang: str = "en") -> dict:
     graph = build_graph()
     config = {"configurable": {"thread_id": plan_id}}
-    graph.invoke({"plan_id": plan_id, "inputs": inputs}, config=config)
+    graph.invoke({"plan_id": plan_id, "lang": lang, "inputs": inputs}, config=config)
     return graph.get_state(config).values
 
 
