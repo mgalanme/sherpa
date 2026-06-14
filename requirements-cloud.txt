@@ -43,3 +43,10 @@ python-dotenv>=1.0
 requests>=2.32
 pandas>=2.2
 numpy>=1.26
+
+# Route and transport (added v2)
+
+# Wikidata / SPARQL (added v2 - no extra package needed, uses requests)
+# iNaturalist - uses requests only
+# OSRM - uses requests only
+# open-elevation - uses requests only

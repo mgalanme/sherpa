@@ -11,12 +11,12 @@ from typing import Any
 
 from .. import mesh
 from ..clients import culture, geo, nature, route, weather
+from ..clients.transport import get_transport_options
 from ..models import (
     ActivityInputs,
     Dossier,
     EquipmentChecklist,
     Recommendation,
-    RiskFlag,
 )
 from ..recommend import recommend
 
@@ -56,12 +56,30 @@ def run_culture(state: dict[str, Any]) -> dict[str, Any]:
     inp: ActivityInputs = state["inputs"]
     facts = culture.place_facts(inp.activity_start)
     facts.flora_fauna = nature.likely_species(inp.activity_start)
+    protected = nature.nature_areas(inp.activity_start)
+    if protected:
+        existing = set(facts.points_of_interest)
+        facts.points_of_interest += [p for p in protected if p not in existing]
     _emit(
         state,
         "culture",
         {"pois": len(facts.points_of_interest), "species": len(facts.flora_fauna)},
     )
     return {"place_facts": facts}
+
+
+def run_transport(state: dict[str, Any]) -> dict[str, Any]:
+    """Compute transport options from departure origin to activity start."""
+    try:
+        inp: ActivityInputs = state["inputs"]
+        if inp.departure_origin.lat == 0.0 and inp.departure_origin.lon == 0.0:
+            return {"transport_options": []}
+        options = get_transport_options(inp.departure_origin, inp.activity_start)
+        _emit(state, "transport", {"modes": [o.mode for o in options]})
+        return {"transport_options": options}
+    except Exception as exc:
+        _emit(state, "transport_error", {"error": str(exc)})
+        return {"transport_options": []}
 
 
 def run_recommend(state: dict[str, Any]) -> dict[str, Any]:
@@ -73,18 +91,28 @@ def run_recommend(state: dict[str, Any]) -> dict[str, Any]:
         if route_info is None or weather_panel is None:
             _emit(state, "recommend_warning", {"reason": "Missing route or weather"})
             rec = Recommendation(
-                checklist=EquipmentChecklist(personal=[], activity_specific=[], nutrition_hydration=[]),
+                checklist=EquipmentChecklist(
+                    personal=[], activity_specific=[], nutrition_hydration=[]
+                ),
                 risk_flags=[],
-                rationale=["Recommendation skipped because route or weather data was missing."]
+                rationale=[
+                    "Recommendation skipped because route or weather data was missing."
+                ],
             )
         else:
             rec = recommend(inp, route_info, weather_panel)
     except Exception as e:
-        _emit(state, "recommend_error", {"error": str(e), "trace": traceback.format_exc()})
+        _emit(
+            state, "recommend_error", {"error": str(e), "trace": traceback.format_exc()}
+        )
         rec = Recommendation(
-            checklist=EquipmentChecklist(personal=[], activity_specific=[], nutrition_hydration=[]),
+            checklist=EquipmentChecklist(
+                personal=[], activity_specific=[], nutrition_hydration=[]
+            ),
             risk_flags=[],
-            rationale=[f"Recommendation engine failed: {str(e)}. Please review manually."]
+            rationale=[
+                f"Recommendation engine failed: {str(e)}. Please review manually."
+            ],
         )
     _emit(state, "recommend", {"flags": len(rec.risk_flags)})
     return {"recommendation": rec}
@@ -98,22 +126,28 @@ def run_compose(state: dict[str, Any]) -> dict[str, Any]:
     facts = state.get("place_facts")
     narrative = write_narrative(inp, facts)
 
-    # Safely get recommendation, using a fallback if missing
     recommendation = state.get("recommendation")
     if recommendation is None:
-        # This should not happen if run_recommend ran, but guard against graph misconfiguration
         recommendation = Recommendation(
-            checklist=EquipmentChecklist(personal=[], activity_specific=[], nutrition_hydration=[]),
+            checklist=EquipmentChecklist(
+                personal=[], activity_specific=[], nutrition_hydration=[]
+            ),
             risk_flags=[],
-            rationale=["Recommendation was not produced. Check the graph definition or logs."]
+            rationale=[
+                "Recommendation was not produced. Check the graph definition or logs."
+            ],
         )
-        _emit(state, "compose_warning", {"reason": "Missing recommendation, using fallback"})
+        _emit(
+            state,
+            "compose_warning",
+            {"reason": "Missing recommendation, using fallback"},
+        )
 
     dossier = Dossier(
         plan_id=state["plan_id"],
         inputs=inp,
-        route=state["route"],
-        weather=state["weather"],
+        route=state.get("route"),
+        weather=state.get("weather"),
         access_notes=state.get("access_notes", []),
         place_facts=facts,
         recommendation=recommendation,
